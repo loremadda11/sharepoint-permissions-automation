@@ -1,25 +1,49 @@
 # SharePoint Permissions Automation
 
-PowerShell scripts to bulk-assign granular folder permissions across hundreds of SharePoint Online project folders — using PnP PowerShell and Microsoft Graph.
+PowerShell automation to bulk-assign granular folder permissions across hundreds of SharePoint Online project folders using PnP PowerShell and Microsoft 365 tooling.
 
----
+> **Portfolio context** — This is a sanitized example of the kind of operational automation I build as an IT Specialist: start from a repetitive real-world problem, define a safer workflow, automate it, test it in small batches, and make the result auditable.
+
+## My role
+
+I treated this as an operational/process problem rather than a pure scripting task:
+
+- analysed the existing manual permission workflow and the different legacy folder structures;
+- defined the target permission model and the required safety checks;
+- used AI-assisted development tools alongside PowerShell to accelerate implementation while reviewing and testing the resulting logic;
+- added dry-run, batching, retry logic and CSV reporting so the tool could be used safely on a large live environment;
+- validated the workflow progressively before wider execution.
 
 ## The problem
 
 A procurement site on SharePoint Online contained **300 GB of data** organised in ~150 project folders (`01_PROJECTS/`). Each project had a `CONTRACTS` subfolder requiring specific, non-inherited permissions (different from the parent site):
 
-| User / Group       | Permission level |
-|--------------------|------------------|
-| Project manager    | Full Control     |
-| Project collaborator | Contribute     |
-| Read-only user     | Read             |
-| Site Members group | Read             |
+| User / Group | Permission level |
+|---|---|
+| Project manager | Full Control |
+| Project collaborator | Contribute |
+| Read-only user | Read |
+| Site Members group | Read |
 
-Setting these manually through the SharePoint UI would have taken **approximately one week**. These scripts reduced that to a single automated run.
+Setting these manually through the SharePoint UI would have taken **approximately one week**. The automation reduced that to a controlled batch process.
 
-An additional complication: some older projects had the folder named `CONTRACTS` (no numeric prefix), while newer ones used `02_CONTRACTS`. Two separate scripts handle each case.
+An additional complication: some older projects had the folder named `CONTRACTS`, while newer ones used `02_CONTRACTS`. Two scripts handle the two cases without double-processing.
 
----
+## Workflow
+
+```text
+SharePoint project folders
+        ↓
+Discover target CONTRACTS folders
+        ↓
+Dry-run / small batch validation
+        ↓
+Reset and rebuild permissions
+        ↓
+Retry transient failures
+        ↓
+CSV discovery + execution reports
+```
 
 ## Scripts
 
@@ -27,67 +51,59 @@ An additional complication: some older projects had the folder named `CONTRACTS`
 Targets folders named `02_CONTRACTS` inside each top-level project folder.
 
 ### `Set-LegacyContractFolderPermissions.ps1`
-Targets folders named `CONTRACTS` (no prefix), skipping any project that already has `02_CONTRACTS` (to avoid double-processing).
+Targets folders named `CONTRACTS` (no prefix), skipping any project that already has `02_CONTRACTS`.
 
 Both scripts share the same logic:
 
-1. Connect to SharePoint Online via PnP PowerShell (interactive login)
+1. Connect to SharePoint Online via PnP PowerShell
 2. Enumerate all top-level project folders
 3. Detect which ones contain the target subfolder
 4. For each target folder:
-   - Reset any existing unique permissions
-   - Break inheritance (without copying parent permissions)
-   - Remove all leftover role assignments
-   - Assign the correct permissions to the defined users/group
-5. Export a CSV log with timestamp, result (OK / ERROR), and error detail
-
----
+   - reset any existing unique permissions;
+   - break inheritance without copying parent permissions;
+   - remove leftover role assignments;
+   - assign only the intended users/groups and permission levels;
+5. Export CSV logs with timestamp, result and error detail.
 
 ## Key design decisions
 
-**Dry-run mode** (`$DryRun = $true`): shows exactly what would change without touching anything. Always run this first.
+**Dry-run mode** — shows exactly what would change without touching anything.
 
-**Throttling-aware retry** (`Invoke-WithRetry`): SharePoint Graph API returns HTTP 429 (Too Many Requests) and 503 under load. The retry function handles transient errors with exponential backoff (up to 60 seconds), so the script can run unattended on large sites without failing.
+**Throttling-aware retry** — transient HTTP 429 / 503 responses are handled with exponential backoff, allowing long runs to continue safely.
 
-**Batch limit** (`$MaxFoldersToProcess`): set to a small number (e.g. 3) for initial real-world testing before processing all folders. Set to 0 to process everything.
+**Batch limit** — initial real-world testing can be restricted to a small number of folders before processing the full set.
 
-**Clean permission reset**: instead of adding permissions on top of existing ones (which can leave ghost assignments), the scripts always: reset inheritance → break inheritance fresh → delete all existing assignments → assign only the intended permissions. This guarantees a predictable, auditable final state.
+**Clean permission reset** — permissions are rebuilt from a known state instead of layering new assignments on top of unknown legacy permissions.
 
-**CSV audit log**: every run produces two CSV files — a discovery log (what was found/skipped) and a results log (what was changed and whether it succeeded). Useful for auditing and troubleshooting.
+**CSV audit log** — every run produces discovery and results reports for auditing and troubleshooting.
 
----
+## Practical impact
+
+The main value was removing a large amount of repetitive manual permission work while reducing inconsistency and making the process repeatable, reviewable and auditable.
 
 ## Requirements
 
 - [PnP PowerShell](https://pnp.github.io/powershell/) (`Install-Module PnP.PowerShell`)
-- An Entra ID App Registration with `Sites.FullControl.All` permission (or run interactively with a SharePoint admin account)
+- An Entra ID App Registration with `Sites.FullControl.All` permission (or an appropriately privileged interactive account)
 - PowerShell 7+ recommended
-
----
 
 ## Setup
 
 1. Clone this repository
-2. Open the script and update the `CONFIGURAZIONE` section at the top:
+2. Update the configuration section with your own test tenant/site values
+3. Start with dry-run enabled
+4. Review the discovery CSV
+5. Run a small real batch
+6. Process the full set only after validation
 
-```powershell
-$ClientId            = "<YOUR-APP-CLIENT-ID>"
-$SiteUrl             = "https://your-tenant.sharepoint.com/sites/YourSite"
-$LibraryTitle        = "Shared Documents"       # or your document library name
-$RootProjectsFolder  = "/sites/YourSite/Shared Documents/01_PROJECTS"
-$ManagerLogin        = "manager@your-tenant.com"
-$CollabLogin         = "collaborator@your-tenant.com"
-$ReadOnlyLogin       = "readonly@your-tenant.com"
-```
-
-3. Run in dry-run mode first:
+Example:
 
 ```powershell
 $DryRun = $true
 .\Set-ContractFolderPermissions.ps1
 ```
 
-4. Review the discovery log CSV, then run for real on a small batch:
+Then a small batch:
 
 ```powershell
 $DryRun = $false
@@ -95,24 +111,20 @@ $MaxFoldersToProcess = 3
 .\Set-ContractFolderPermissions.ps1
 ```
 
-5. If results look correct, process everything:
+## Security notes
 
-```powershell
-$DryRun = $false
-$MaxFoldersToProcess = 0
-.\Set-ContractFolderPermissions.ps1
-```
-
----
+- Use placeholder/sample tenant data in public repositories
+- Do not commit real user addresses, internal site URLs, secrets or production identifiers
+- Prefer dry-run and small-batch validation before changing permissions at scale
+- Review the scripts before using them in your own environment
 
 ## What I learned
 
-- SharePoint's permission inheritance model: when and why to use `BreakRoleInheritance($false, $true)` vs `$false, $false`
-- How PnP PowerShell wraps the CSOM API, and where you still need to call `ExecuteQuery()` manually
-- Handling Microsoft Graph throttling gracefully in long-running scripts
-- The importance of dry-run + batched testing before touching production data at scale
-
----
+- SharePoint permission inheritance and role assignment behaviour
+- How PnP PowerShell interacts with SharePoint CSOM
+- Handling throttling and transient failures in long-running automation
+- Why dry-run, batching and audit output matter more than raw script speed in production operations
+- Using AI-assisted coding as an implementation accelerator while keeping problem definition, validation and operational safety human-owned
 
 ## Technologies
 
