@@ -4,6 +4,16 @@ PowerShell automation to bulk-assign granular folder permissions across hundreds
 
 > **Portfolio context** — This is a sanitized example of the kind of operational automation I build as an IT Specialist: start from a repetitive real-world problem, define a safer workflow, automate it, test it in small batches, and make the result auditable.
 
+## Case study at a glance
+
+**Situation** — A live SharePoint Online procurement environment contained about **300 GB of data** and roughly **150 project folders**, with contract subfolders requiring a permission model different from the parent site.
+
+**Problem** — Applying the required permissions manually through the SharePoint UI would have meant repeating the same high-risk operation across many folders, with inconsistent legacy naming (`CONTRACTS` / `02_CONTRACTS`) and an estimated effort of about **one working week**.
+
+**Approach** — I analysed the existing folder and permission structure, defined a target permission model, then built and progressively validated a PowerShell automation with dry-run, limited-batch execution, retry handling and CSV reporting.
+
+**Outcome** — The manual workflow became a controlled, repeatable and auditable batch process, reducing repetitive work while making permission changes easier to validate and troubleshoot.
+
 ## My role
 
 I treated this as an operational/process problem rather than a pure scripting task:
@@ -69,7 +79,7 @@ Both scripts share the same logic:
 
 **Dry-run mode** — shows exactly what would change without touching anything.
 
-**Throttling-aware retry** — transient HTTP 429 / 503 responses are handled with exponential backoff, allowing long runs to continue safely.
+**Throttling-aware retry** — transient HTTP 429 / 503 responses are handled with retry and backoff, allowing long runs to continue safely.
 
 **Batch limit** — initial real-world testing can be restricted to a small number of folders before processing the full set.
 
@@ -80,6 +90,8 @@ Both scripts share the same logic:
 ## Practical impact
 
 The main value was removing a large amount of repetitive manual permission work while reducing inconsistency and making the process repeatable, reviewable and auditable.
+
+This project is representative of how I typically work: **understand the operational problem first, design the workflow, use automation/code as the implementation layer, then validate the result in a real environment.**
 
 ## Requirements
 
