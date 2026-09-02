@@ -22,6 +22,7 @@ $ReadOnlyLogin   = "readonly.user@contoso.com"
 
 $RoleManager  = "Full Control"
 $RoleCollab   = "Contribute"
+$RoleReadOnly = "Read"
 $RoleMembers  = "Read"
 
 $DryRun              = $true
@@ -131,9 +132,9 @@ function Set-CleanFolderPermissions {
             -User $CollabLogin -AddRole $RoleCollab -ErrorAction Stop
     }
 
-    Invoke-WithRetry -Operation "Assign ReadOnly - Contribute" -ScriptBlock {
+    Invoke-WithRetry -Operation "Assign ReadOnly - Read" -ScriptBlock {
         Set-PnPListItemPermission -List $LibraryTitle -Identity $Item.Id `
-            -User $ReadOnlyLogin -AddRole $RoleCollab -ErrorAction Stop
+            -User $ReadOnlyLogin -AddRole $RoleReadOnly -ErrorAction Stop
     }
 
     Invoke-WithRetry -Operation "Assign Members group - Read" -ScriptBlock {
